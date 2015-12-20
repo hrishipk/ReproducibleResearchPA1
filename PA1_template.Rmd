@@ -1,0 +1,103 @@
+---
+title: "Activity Monitoring Data Analysis"
+author: "Hrishikesh Kulkarni"
+date: "December 16, 2015"
+output: html_document
+---
+
+## Part1 - Reading the Data in R 
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+* steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+* date: The date on which the measurement was taken in YYYY-MM-DD format
+* interval: Identifier for the 5-minute interval in which measurement was taken
+
+```{r Reading Data}
+setwd("D:\\Personal\\ReproducibleResearch\\Assignment1\\repdata_data_activity")
+library(dplyr)
+library(plyr)
+library(ggplot2)
+activity <- read.csv("activity.csv", header = TRUE)
+activityrmna <- na.omit(activity)
+```
+
+## Part2 - What is mean total number of steps taken per day?
+
+Let us plot the total number of steps taken per day by this individual.
+
+```{r TotalStepsHistogram}
+totalSteps <- aggregate(steps ~ date,activityrmna , sum)
+with(totalSteps, hist(steps, main = "Hisogram of Total Steps Per Day", xlab = "Total steps per day", ylab = "Frequency", labels = TRUE))
+```
+
+The Mean and Median of the total number of steps taken per day are:
+```{r, MeanMedian}
+meanSteps <- mean(totalSteps$steps)
+medianSteps <- median(totalSteps$steps)
+print(meanSteps)
+print(medianSteps)
+```
+
+## Part3 - What is the average daily activity pattern?
+
+Let us see the time-series plot of a 5-minute interval and average number of steps taken (averaged across all the days). We are still considering the data excluding the missing values. 
+```{r avgPerInterval}
+avgPerInterval <- aggregate(steps ~ interval, data = activityrmna, mean)
+with(avgPerInterval, plot(interval,steps, type = "l"))
+```
+
+The 5-minute interval, on average across all the days in the dataset, which contains the maximum number of steps [830, 835]
+```{r,TimeIntMaxSteps}
+arrange(avgPerInterval, desc(steps))[1,]
+```
+
+## Part4 - Imputing missing values
+Let us consider the original dataset with missing values. The total number of missing values in the original dataset were:
+```{r, totalMissingValues}
+totalMissingRows <- sum(!complete.cases(activity))
+print(totalMissingRows)
+```
+
+The missing values will now be replaced by the average number of steps taken per interval averaged over all the days.
+The new dataset *newActivity* is same as *activity* but with the missing data filled in. 
+
+```{r Imputation}
+impute.mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
+newActivity <- ddply(activity, ~ interval, transform, steps = impute.mean(steps))
+newActivity <- arrange(newActivity, date)
+head(newActivity)
+```
+
+```{r TotalStepsHistogramAllData}
+totalSteps_newActivity <- aggregate(steps ~ date,newActivity , sum)
+with(totalSteps_newActivity, hist(steps, main = "Hisogram of Total Steps Per Day", xlab = "total steps per day", ylab = "Frequency", labels = TRUE))
+```
+
+```{r, MeanMedianAllData}
+meanStepsAllData <- mean(totalSteps_newActivity$steps)
+medianStepsAllData <- median(totalSteps_newActivity$steps)
+print(meanStepsAllData)
+print(meanStepsAllData)
+```
+The mean is the same as the first part but the median differs sightly.Imputing missing values does have a positive impact on total number of steps. It can be clearly seen from the two histograms.
+
+## Part5 - Are there differences in activity patterns between weekdays and weekends?
+
+
+```{r weekday, fig.height=6}
+newActivity$date_new <- as.Date(newActivity$date)
+newActivity$weekdayflag<- ifelse (weekdays(newActivity$date_new)=="Saturday" | weekdays(newActivity$date_new)=="Sunday","weekend","weekday")
+weekday_data<-subset(newActivity,newActivity$weekdayflag=="weekday")
+weekend_data<-subset(newActivity,newActivity$weekdayflag=="weekend")
+
+weekday_avg<-sapply(split(weekday_data[,1],weekday_data$interval),mean)
+weekend_avg<-sapply(split(weekend_data[,1],weekend_data$interval),mean)
+interval <-unique(newActivity$interval)
+par(mfrow=c(2,1))
+plot(interval,weekday_avg,type="l",main="Plot of interval vs. average steps on weekday")
+plot(interval,weekend_avg,type="l",main="Plot of interval vs. average steps on weekend")
+```
+
+From the above plots, one can conclude that this individual is more active on weekends than weekdays except in the time slot of 800-1000.
+
+
